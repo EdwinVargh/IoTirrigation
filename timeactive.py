@@ -3,12 +3,10 @@ from datetime import datetime
 itstime = datetime.now()
 date_time = itstime.strftime("%m/%d/%Y, %H:%M:%S")
 print("date and time:", date_time)
-daysetting = 0
-lowertime = 0
-uppertime = 0
-print(itstime.strftime("%d"))
+day = (input('Enter the day: '))
+time = (input('Enter the time: '))
 # Results in current date and time
-if (itstime.strftime("%d") == '17'):
+if itstime.strftime("%d") == day and itstime.strftime("%H") == time:
     print("water go!")
 else:
     print("no water")
