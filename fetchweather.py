@@ -6,7 +6,7 @@ settings = {
     'api_key':'957ea5e3412c8e4daa0d8f0547b7c716',
     'zip_code':'Dallas',
     'country_code':'us',
-    'temp_unit':'imperial'} #unit can be metric, imperial, or kelvin
+    'temp_unit':'metric'} #unit can be metric, imperial, or kelvin
 
 BASE_URL = "https://api.openweathermap.org/data/2.5/weather?q={0}&appid={1}&units={2}"
 

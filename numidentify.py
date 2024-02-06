@@ -84,6 +84,5 @@ history = model.fit(training_images,
                     validation_data = (validation_images, validation_labels)
                     )
 plot_accuracy_and_loss(history)
-request = "https://i.ibb.co/dL0R7bL/2.jpg"
-urlopen(request, context=ssl.create_default_context(cafile=certifi.where()))
+request = "https://dojo.soy/num2"
 predict_image(request)
