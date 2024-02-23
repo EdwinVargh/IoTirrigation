@@ -22,7 +22,9 @@ while True:
     final_url = BASE_URL.format(settings["zip_code"], settings["api_key"], settings["temp_unit"])
     weather_data = requests.get(final_url).json()
     pprint(weather_data)
+    #t0 = time.clock_gettime_ns( time.CLOCK_REALTIME)
     temperature = weather_data['main']['temp']
+    pprint(weather_data['weather'][0]['description'])
     if temperature >= 0:
         second = itstime.second
         pprint(second)

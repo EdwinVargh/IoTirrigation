@@ -1,4 +1,5 @@
 from datetime import datetime
+from machine import Timer
 
 itstime = datetime.now()
 date_time = itstime.strftime("%m/%d/%Y, %H:%M:%S")
@@ -10,3 +11,5 @@ if itstime.strftime("%d") == day and itstime.strftime("%H") == time:
     print("water go!")
 else:
     print("no water")
+
+tommy = Timer()

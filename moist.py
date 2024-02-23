@@ -5,6 +5,7 @@ import ads1115 as ads1115
 import gain as gain
 from gpiozero import MCP3008
 
+adc = Adafruit_ADS1x15.ADS1115()
 Moisture_Raw   = ads1115.readRaw(config.moistureADPin, gain, sps) # Scale to 10 bits
 if (Moisture_Raw > 0x7FFF):
     Moisture_Raw = 0 # Zero out negative Values

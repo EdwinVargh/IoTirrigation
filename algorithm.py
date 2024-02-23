@@ -1,5 +1,8 @@
 import time
 from pprint import pprint
+from matplotlib import pyplot
+import numpy
+#from scipy.interpolate import spline
 
 import requests
 
@@ -25,17 +28,38 @@ BASE_URL = "https://api.openweathermap.org/data/2.5/weather?q={0}&appid={1}&unit
 final_url = BASE_URL.format(settings["zip_code"], settings["api_key"], settings["temp_unit"])
 weather_data = requests.get(final_url).json()
 while True:
-    soil = "clay loam"
-    zones = 5 #entered
-    flowrate = 4 #based on sprinkler head entered
-    depthwet = 6
-    preciprate = flowrate*zones*1.604/area
-    schedmult = 0.39 #predict with machine learning
-    maxhumidratio = 0.007 #predict with machine learning
-    runco = runcos[soil]
+    diqualcount = 0
+    if weather_data['main']['temp']>=35:
+        diqualcount+=1
+    if weather_data['main']['temp']<=0:
+        diqualcount += 1
+    if weather_data['main']['humidity']>80:
+        diqualcount += 1
+    lightrain = weather_data['weather'][0]['description'] == 'light rain'
+    modrain = weather_data['weather'][0]['description'] == 'moderate rain'
+    heavyrain = weather_data['weather'][0]['description'] == 'heavy intensity rain'
+    rainsnow = weather_data['weather'][0]['description'] == 'rain and snow'
+    if lightrain or modrain or heavyrain or rainsnow:
+        diqualcount += 1
+    if not diqualcount > 0:
+        soil = "clay loam"
+        zones = 5 #entered
+        flowrate = 4 #based on flow rate entered
+        depthwet = 6
+        x = numpy.array([0, 5, 10, 15, 20, 25, 30])
+        y = numpy.array([0.003767, 0.005387, 0.007612, 0.01062, 0.014659, 0.019826, 0.027125])
+        pyplot.xlim(35)
+        line2d = pyplot.plot(x, y)
+        maxhumidratio = numpy.interp(weather_data['main']['temp'], x,y)
+        preciprate = flowrate*zones*1.604/area
+        schedmult = 0.39 #predict with machine learning
+        runco = runcos[soil]
 
-    runtime2 = ((0.623*area)+(25+19*weather_data['wind']['speed'])*area*(maxhumidratio-maxhumidratio*.01*weather_data['main']['humidity'])*0.000264172052)/flowrate
-    runtime = (depthwet*plantavail[soil])/(preciprate*schedmult*2)
-    pprint(runtime2)
-    pprint(runtime)
-    time.sleep(5)
+        runtime2 = ((0.623*area)+(25+19*weather_data['wind']['speed'])*area*(maxhumidratio-maxhumidratio*.01*weather_data['main']['humidity'])*0.000264172052)/flowrate
+        runtime = (depthwet*plantavail[soil])/(preciprate*schedmult*2)
+        pprint(runtime2)
+        pprint(runtime)
+        time.sleep(5)
+
+        #Inputs
+        #Output: When zone
