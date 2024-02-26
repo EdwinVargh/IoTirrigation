@@ -2,6 +2,7 @@ import time
 from pprint import pprint
 from matplotlib import pyplot
 import numpy
+import RPi.GPIO as GPIO
 #from scipy.interpolate import spline
 
 import requests
@@ -53,13 +54,16 @@ while True:
         maxhumidratio = numpy.interp(weather_data['main']['temp'], x,y)
         preciprate = flowrate*zones*1.604/area
         schedmult = 0.39 #predict with machine learning
-        runco = runcos[soil]
+        maxtime = 0
 
         runtime2 = ((0.623*area)+(25+19*weather_data['wind']['speed'])*area*(maxhumidratio-maxhumidratio*.01*weather_data['main']['humidity'])*0.000264172052)/flowrate
         runtime = (depthwet*plantavail[soil])/(preciprate*schedmult*2)
-        pprint(runtime2)
-        pprint(runtime)
-        time.sleep(5)
+
+        maxtime=(plantavail[soil]*area*6)/(flowrate)
+        if runtime2>=maxtime:
+            runtime2 = maxtime
+        GPIO.output(18, GPIO.LOW)
+        time.sleep(runtime2)
 
         #Inputs
         #Output: When zone

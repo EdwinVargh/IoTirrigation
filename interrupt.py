@@ -1,10 +1,10 @@
-import smbus
+import smbus2
 import time
 
 
 def main():
     RtcI2cAddr = 0x68
-    bus = smbus.SMBus(1)
+    bus = smbus2.SMBus(1)
 
     bus.write_byte_data(RtcI2cAddr, 0x00, 0x08)
     bus.write_byte_data(RtcI2cAddr, 0x01, 0x00)

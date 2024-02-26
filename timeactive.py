@@ -1,5 +1,4 @@
 from datetime import datetime
-from machine import Timer
 
 itstime = datetime.now()
 date_time = itstime.strftime("%m/%d/%Y, %H:%M:%S")
