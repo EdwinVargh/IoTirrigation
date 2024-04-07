@@ -1,0 +1,286 @@
+<html>
+<head>
+<title>algorithm.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cc7832;}
+.s1 { color: #a9b7c6;}
+.s2 { color: #808080;}
+.s3 { color: #6897bb;}
+.s4 { color: #6a8759;}
+</style>
+</head>
+<body bgcolor="#2b2b2b">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+algorithm.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">time</span>
+<span class="s0">from </span><span class="s1">pprint </span><span class="s0">import </span><span class="s1">pprint</span>
+<span class="s0">from </span><span class="s1">matplotlib </span><span class="s0">import </span><span class="s1">pyplot</span>
+<span class="s0">import </span><span class="s1">numpy</span>
+<span class="s0">import </span><span class="s1">serial</span>
+<span class="s0">import </span><span class="s1">time</span>
+<span class="s0">import </span><span class="s1">datetime</span>
+<span class="s0">import </span><span class="s1">struct</span>
+<span class="s0">from </span><span class="s1">smbus2 </span><span class="s0">import </span><span class="s1">SMBus</span><span class="s0">, </span><span class="s1">i2c_msg</span>
+<span class="s0">import </span><span class="s1">RPi.GPIO </span><span class="s0">as </span><span class="s1">gpio</span>
+<span class="s2">#import RPi.GPIO as GPIO</span>
+<span class="s2">#from scipy.interpolate import spline</span>
+
+<span class="s0">import </span><span class="s1">requests</span>
+
+
+<span class="s1">infil2 = [</span><span class="s3">1.5</span><span class="s0">,</span><span class="s3">0.4</span><span class="s0">,</span><span class="s3">0.3</span><span class="s0">,</span><span class="s3">0.05</span><span class="s1">]</span>
+<span class="s1">plantavail2 = [</span><span class="s3">0.05</span><span class="s0">,</span><span class="s3">0.16</span><span class="s0">,</span><span class="s3">0.2</span><span class="s0">,</span><span class="s3">0.15</span><span class="s1">]</span>
+<span class="s1">settings = {</span>
+    <span class="s4">'api_key'</span><span class="s1">:</span><span class="s4">'957ea5e3412c8e4daa0d8f0547b7c716'</span><span class="s0">,</span>
+    <span class="s4">'zip_code'</span><span class="s1">:</span><span class="s4">'Dallas'</span><span class="s0">,</span>
+    <span class="s4">'country_code'</span><span class="s1">:</span><span class="s4">'us'</span><span class="s0">,</span>
+    <span class="s4">'temp_unit'</span><span class="s1">:</span><span class="s4">'metric'</span><span class="s1">} </span><span class="s2">#unit can be metric, imperial, or kelvin</span>
+<span class="s2">#GPIO.setmode(GPIO.BCM)</span>
+<span class="s2">#GPIO.setwarnings(False)</span>
+<span class="s2">#GPIO.setup(18,GPIO.OUT)</span>
+<span class="s2">#GPIO.setup(17,GPIO.OUT)</span>
+<span class="s2">#GPIO.setup(16,GPIO.OUT)</span>
+<span class="s1">BASE_URL = </span><span class="s4">&quot;https://api.openweathermap.org/data/2.5/weather?q={0}&amp;appid={1}&amp;units={2}&quot;</span>
+
+
+<span class="s0">def </span><span class="s1">rtc_alarm_callback(channel):</span>
+    <span class="s1">print(</span><span class="s4">&quot;RTC Alarm Triggered&quot;</span><span class="s1">)</span>
+
+<span class="s1">AdcI2cAddr = </span><span class="s3">0x48</span>
+
+<span class="s1">AdcConvReg = </span><span class="s3">0x00</span>
+<span class="s1">AdcCfgReg = </span><span class="s3">0x01</span>
+<span class="s1">AdcCompLoReg = </span><span class="s3">0x02</span>
+<span class="s1">AdcCompHiReg = </span><span class="s3">0x03</span>
+<span class="s1">bus = SMBus(</span><span class="s3">1</span><span class="s1">)</span>
+
+<span class="s1">AdcConfig=[</span><span class="s3">0x42</span><span class="s0">,</span><span class="s3">0x00</span><span class="s1">]</span>
+<span class="s1">bus.write_i2c_block_data(AdcI2cAddr</span><span class="s0">,</span><span class="s1">AdcCfgReg</span><span class="s0">,</span><span class="s1">AdcConfig)</span>
+<span class="s1">bus.write_byte(AdcI2cAddr</span><span class="s0">,</span><span class="s1">AdcConvReg)</span>
+
+<span class="s1">Msg = i2c_msg.read(AdcI2cAddr</span><span class="s0">, </span><span class="s3">2</span><span class="s1">)</span>
+
+<span class="s1">RtcI2cAddr = </span><span class="s3">0x68</span>
+<span class="s2"># RTC is on I2C channel 1</span>
+<span class="s1">bus = SMBus(</span><span class="s3">1</span><span class="s1">)</span>
+<span class="s2"># RTCs Alarm pin is connected to GPIO 23</span>
+<span class="s1">RtcAlrmPin = </span><span class="s3">23</span>
+<span class="s2"># Set to Broadcom Pin Number system</span>
+<span class="s1">gpio.setmode(gpio.BCM)</span>
+
+<span class="s2"># Configure the RTC for 12Hr time, enable Alarm in Control Register 1</span>
+<span class="s1">bus.write_byte_data(RtcI2cAddr</span><span class="s0">, </span><span class="s3">0x00</span><span class="s0">, </span><span class="s3">0x08</span><span class="s1">)</span>
+<span class="s2"># Clear Alarm bit in Control Register 2</span>
+<span class="s1">bus.write_byte_data(RtcI2cAddr</span><span class="s0">, </span><span class="s3">0x01</span><span class="s0">, </span><span class="s3">0x00</span><span class="s1">)</span>
+<span class="s2"># Leave Control Register 3 set to defaults</span>
+<span class="s1">bus.write_byte_data(RtcI2cAddr</span><span class="s0">, </span><span class="s3">0x02</span><span class="s0">, </span><span class="s3">0x00</span><span class="s1">)</span>
+
+<span class="s2"># Configure gpio pin to interrupt on alarm</span>
+<span class="s1">gpio.setup(RtcAlrmPin</span><span class="s0">, </span><span class="s1">gpio.IN</span><span class="s0">, </span><span class="s1">pull_up_down=gpio.PUD_UP)</span>
+<span class="s1">gpio.add_event_detect(RtcAlrmPin</span><span class="s0">, </span><span class="s1">gpio.FALLING</span><span class="s0">, </span><span class="s1">callback=rtc_alarm_callback)</span>
+<span class="s1">gpios = [</span><span class="s3">16</span><span class="s0">,</span><span class="s3">19</span><span class="s0">,</span><span class="s3">20</span><span class="s0">,</span><span class="s3">21</span><span class="s0">,</span><span class="s3">26</span><span class="s1">]</span>
+
+<span class="s1">date = datetime.now().strftime(</span><span class="s4">&quot;%H:%M:%S&quot;</span><span class="s1">)</span>
+<span class="s1">today = datetime.today().strftime(</span><span class="s4">&quot;%B:%D:%Y&quot;</span><span class="s1">)</span>
+<span class="s1">hr = int(datetime.now().strftime(</span><span class="s4">&quot;%H&quot;</span><span class="s1">))</span>
+<span class="s1">min = int(datetime.now().strftime(</span><span class="s4">&quot;%M&quot;</span><span class="s1">))</span>
+<span class="s1">sec = int(datetime.now().strftime(</span><span class="s4">&quot;%S&quot;</span><span class="s1">))</span>
+<span class="s1">hr = int(datetime.now().strftime(</span><span class="s4">&quot;%B&quot;</span><span class="s1">))</span>
+<span class="s1">min = int(datetime.now().strftime(</span><span class="s4">&quot;%D&quot;</span><span class="s1">))</span>
+<span class="s1">sec = int(datetime.now().strftime(</span><span class="s4">&quot;%Y&quot;</span><span class="s1">))</span>
+
+<span class="s0">def </span><span class="s1">InitMoistureAdc():</span>
+    <span class="s2"># RTC is on I2C channel 1</span>
+    <span class="s1">bus = SMBus(</span><span class="s3">1</span><span class="s1">)</span>
+    <span class="s2"># Configure the ADC for Single Ended, +/-4.096V range, Continuous-conversion, 8SPS, Comp - default</span>
+    <span class="s1">AdcConfig = [</span><span class="s3">0x42</span><span class="s0">, </span><span class="s3">0x00</span><span class="s1">]</span>
+    <span class="s1">bus.write_i2c_block_data(AdcI2cAddr</span><span class="s0">, </span><span class="s1">AdcCfgReg</span><span class="s0">, </span><span class="s1">AdcConfig)</span>
+    <span class="s2"># Set address pointer to ADC data register</span>
+    <span class="s1">bus.write_byte(AdcI2cAddr</span><span class="s0">, </span><span class="s1">AdcConvReg)</span>
+
+<span class="s0">def </span><span class="s1">ReadMoistureAdc():</span>
+    <span class="s1">bus = SMBus(</span><span class="s3">1</span><span class="s1">)</span>
+    <span class="s1">Msg = i2c_msg.read(AdcI2cAddr</span><span class="s0">, </span><span class="s3">2</span><span class="s1">)</span>
+    <span class="s1">bus.i2c_rdwr(Msg)</span>
+    <span class="s1">b = list(Msg)</span>
+    <span class="s1">val = (b[</span><span class="s3">0</span><span class="s1">] * </span><span class="s3">256 </span><span class="s1">+ b[</span><span class="s3">1</span><span class="s1">]) *</span><span class="s3">.000127</span>
+    <span class="s0">return </span><span class="s1">val</span>
+
+<span class="s0">def </span><span class="s1">isDiqual(data):</span>
+    <span class="s1">weather_data = data</span>
+    <span class="s1">diqualcount = </span><span class="s3">0</span>
+    <span class="s0">if </span><span class="s1">weather_data[</span><span class="s4">'main'</span><span class="s1">][</span><span class="s4">'temp'</span><span class="s1">] &gt;= </span><span class="s3">35</span><span class="s1">:</span>
+        <span class="s1">diqualcount += </span><span class="s3">1</span>
+    <span class="s0">if </span><span class="s1">weather_data[</span><span class="s4">'main'</span><span class="s1">][</span><span class="s4">'temp'</span><span class="s1">] &lt;= </span><span class="s3">0</span><span class="s1">:</span>
+        <span class="s1">diqualcount += </span><span class="s3">1</span>
+    <span class="s0">if </span><span class="s1">weather_data[</span><span class="s4">'main'</span><span class="s1">][</span><span class="s4">'humidity'</span><span class="s1">] &gt; </span><span class="s3">80</span><span class="s1">:</span>
+        <span class="s1">diqualcount += </span><span class="s3">1</span>
+    <span class="s1">lightrain = weather_data[</span><span class="s4">'weather'</span><span class="s1">][</span><span class="s3">0</span><span class="s1">][</span><span class="s4">'description'</span><span class="s1">] == </span><span class="s4">'light rain'</span>
+    <span class="s1">modrain = weather_data[</span><span class="s4">'weather'</span><span class="s1">][</span><span class="s3">0</span><span class="s1">][</span><span class="s4">'description'</span><span class="s1">] == </span><span class="s4">'moderate rain'</span>
+    <span class="s1">heavyrain = weather_data[</span><span class="s4">'weather'</span><span class="s1">][</span><span class="s3">0</span><span class="s1">][</span><span class="s4">'description'</span><span class="s1">] == </span><span class="s4">'heavy intensity rain'</span>
+    <span class="s1">rainsnow = weather_data[</span><span class="s4">'weather'</span><span class="s1">][</span><span class="s3">0</span><span class="s1">][</span><span class="s4">'description'</span><span class="s1">] == </span><span class="s4">'rain and snow'</span>
+    <span class="s0">if </span><span class="s1">lightrain </span><span class="s0">or </span><span class="s1">modrain </span><span class="s0">or </span><span class="s1">heavyrain </span><span class="s0">or </span><span class="s1">rainsnow:</span>
+        <span class="s1">diqualcount += </span><span class="s3">1</span>
+    <span class="s0">if </span><span class="s1">ReadMoistureAdc() &gt; </span><span class="s3">1.5</span><span class="s1">:</span>
+        <span class="s1">diqualcount += </span><span class="s3">1</span>
+    <span class="s0">return </span><span class="s1">diqualcount</span>
+
+<span class="s0">def </span><span class="s1">DectoBDC(decval):</span>
+    <span class="s1">bcd = </span><span class="s3">0x00</span>
+    <span class="s1">bcd += decval / </span><span class="s3">10 </span><span class="s1">* </span><span class="s3">16</span>
+    <span class="s1">bcd += decval % bcd</span>
+    <span class="s0">return </span><span class="s1">bcd</span>
+
+<span class="s0">def </span><span class="s1">main():</span>
+    <span class="s0">while True</span><span class="s1">:</span>
+        <span class="s1">MoistureVolts = ReadMoistureAdc()</span>
+        <span class="s1">fdata = struct.pack(</span><span class="s4">&quot;f&quot;</span><span class="s0">, </span><span class="s1">MoistureVolts)</span>
+        <span class="s1">port.write(fdata)</span>
+        <span class="s1">time.sleep(</span><span class="s3">0.2</span><span class="s1">)</span>
+
+        <span class="s2"># Set the time and date on RTC to Monday, May 11, 1964 @ 4:59:00PM</span>
+        <span class="s1">myTime = [</span><span class="s3">0x0</span><span class="s0">, </span><span class="s3">0x59</span><span class="s0">, </span><span class="s3">0x24</span><span class="s0">, </span><span class="s3">0x11</span><span class="s0">, </span><span class="s3">0x01</span><span class="s0">, </span><span class="s3">0x05</span><span class="s0">, </span><span class="s3">0x64</span><span class="s1">]</span>
+        <span class="s1">bus.write_i2c_block_data(RtcI2cAddr</span><span class="s0">, </span><span class="s3">0x03</span><span class="s0">, </span><span class="s1">myTime)</span>
+
+        <span class="s1">myTime2 = [</span><span class="s3">0x0</span><span class="s0">, </span><span class="s3">0x25</span><span class="s0">, </span><span class="s3">0x80</span><span class="s0">, </span><span class="s3">0x80</span><span class="s1">]</span>
+        <span class="s1">bus.write_i2c_block_data(RtcI2cAddr</span><span class="s0">, </span><span class="s3">0x0A</span><span class="s0">, </span><span class="s1">myTime2)</span>
+        <span class="s1">num_bytes = port.inWaiting()</span>
+        <span class="s1">grasses = [] </span><span class="s2">#stores each zone's grass type</span>
+        <span class="s1">soils = [] </span><span class="s2">#stores each zone's soil type</span>
+        <span class="s1">days = [] </span><span class="s2">#stores what days are available</span>
+        <span class="s0">if </span><span class="s1">num_bytes &gt;= HdrLen: </span><span class="s2">#unpacks received GUI information</span>
+            <span class="s1">print(</span><span class="s4">&quot;Number of Bytes received = &quot;</span><span class="s0">, </span><span class="s1">num_bytes)</span>
+            <span class="s2"># cPktId = port.read(HdrLen)</span>
+            <span class="s1">iPktId = struct.unpack(</span><span class="s4">'i'</span><span class="s0">, </span><span class="s1">port.read(HdrLen))</span>
+            <span class="s2"># check if packet is a configuration change command</span>
+            <span class="s0">if </span><span class="s1">((iPktId[</span><span class="s3">0</span><span class="s1">] &amp; </span><span class="s3">0xFF000000</span><span class="s1">) == </span><span class="s3">0x57000000</span><span class="s1">):</span>
+                <span class="s1">PktLen = ((iPktId[</span><span class="s3">0</span><span class="s1">] &amp; </span><span class="s3">0x000000FF</span><span class="s1">) - HdrLen)</span>
+                <span class="s1">time.sleep(</span><span class="s3">0.5</span><span class="s1">)</span>
+                <span class="s1">num_bytes = port.inWaiting()</span>
+                <span class="s0">if </span><span class="s1">(num_bytes &lt; PktLen):</span>
+                    <span class="s1">print(</span><span class="s4">&quot;Expected &quot;</span><span class="s0">, </span><span class="s1">PktLen</span><span class="s0">, </span><span class="s4">&quot;bytes on serial port, only received &quot;</span><span class="s0">, </span><span class="s1">num_bytes)</span>
+                    <span class="s0">break</span>
+                <span class="s0">else</span><span class="s1">:</span>
+                    <span class="s1">rx_data = port.read(PktLen)</span>
+                    <span class="s1">fdata = struct.unpack_from(</span><span class="s4">'f'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">0</span><span class="s1">)</span>
+                    <span class="s1">FlowRate = fdata[</span><span class="s3">0</span><span class="s1">]</span>
+                    <span class="s1">ValidDays = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">4</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s0">if </span><span class="s1">(ValidDays &gt;&gt; </span><span class="s3">6</span><span class="s1">) &amp; </span><span class="s3">0x01</span><span class="s1">:</span>
+                        <span class="s1">days.append(</span><span class="s3">6</span><span class="s1">)</span>
+                    <span class="s0">if </span><span class="s1">(ValidDays &gt;&gt; </span><span class="s3">5</span><span class="s1">) &amp; </span><span class="s3">0x01</span><span class="s1">:</span>
+                        <span class="s1">days.append(</span><span class="s3">0</span><span class="s1">)</span>
+                    <span class="s0">if </span><span class="s1">(ValidDays &gt;&gt; </span><span class="s3">4</span><span class="s1">) &amp; </span><span class="s3">0x01</span><span class="s1">:</span>
+                        <span class="s1">days.append(</span><span class="s3">1</span><span class="s1">)</span>
+                    <span class="s0">if </span><span class="s1">(ValidDays &gt;&gt; </span><span class="s3">3</span><span class="s1">) &amp; </span><span class="s3">0x01</span><span class="s1">:</span>
+                        <span class="s1">days.append(</span><span class="s3">2</span><span class="s1">)</span>
+                    <span class="s0">if </span><span class="s1">(ValidDays &gt;&gt; </span><span class="s3">2</span><span class="s1">) &amp; </span><span class="s3">0x01</span><span class="s1">:</span>
+                        <span class="s1">days.append(</span><span class="s3">3</span><span class="s1">)</span>
+                    <span class="s0">if </span><span class="s1">(ValidDays &gt;&gt; </span><span class="s3">1</span><span class="s1">) &amp; </span><span class="s3">0x01</span><span class="s1">:</span>
+                        <span class="s1">days.append(</span><span class="s3">4</span><span class="s1">)</span>
+                    <span class="s0">if </span><span class="s1">ValidDays &amp; </span><span class="s3">0x01</span><span class="s1">:</span>
+                        <span class="s1">days.append(</span><span class="s3">5</span><span class="s1">)</span>
+                    <span class="s1">ValBegHr = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">5</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">ValBegMin = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">6</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">ValBegAmPm = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">7</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">ValEndHr = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">8</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">ValEndMin = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">9</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">ValEndAmPm = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">10</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">Zone = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">11</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">grasses.append[(Zone &gt;&gt; </span><span class="s3">4</span><span class="s1">) &amp; </span><span class="s3">0x0F</span><span class="s1">]</span>
+                    <span class="s1">soils.append[Zone &amp; </span><span class="s3">0x0F</span><span class="s1">]</span>
+                    <span class="s1">Zone = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">12</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">grasses.append[(Zone &gt;&gt; </span><span class="s3">4</span><span class="s1">) &amp; </span><span class="s3">0x0F</span><span class="s1">]</span>
+                    <span class="s1">soils.append[Zone &amp; </span><span class="s3">0x0F</span><span class="s1">]</span>
+                    <span class="s1">Zone = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">13</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">grasses.append[(Zone &gt;&gt; </span><span class="s3">4</span><span class="s1">) &amp; </span><span class="s3">0x0F</span><span class="s1">]</span>
+                    <span class="s1">soils.append[Zone &amp; </span><span class="s3">0x0F</span><span class="s1">]</span>
+                    <span class="s1">Zone = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">14</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">grasses.append[(Zone &gt;&gt; </span><span class="s3">4</span><span class="s1">) &amp; </span><span class="s3">0x0F</span><span class="s1">]</span>
+                    <span class="s1">soils.append[Zone &amp; </span><span class="s3">0x0F</span><span class="s1">]</span>
+                    <span class="s1">Zone = ord((struct.unpack_from(</span><span class="s4">'c'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">15</span><span class="s1">))[</span><span class="s3">0</span><span class="s1">])</span>
+                    <span class="s1">grasses.append[(Zone &gt;&gt; </span><span class="s3">4</span><span class="s1">) &amp; </span><span class="s3">0x0F</span><span class="s1">]</span>
+                    <span class="s1">soils.append[Zone &amp; </span><span class="s3">0x0F</span><span class="s1">]</span>
+
+
+            <span class="s0">elif </span><span class="s1">((iPktId[</span><span class="s3">0</span><span class="s1">] &amp; </span><span class="s3">0xFF000000</span><span class="s1">) == </span><span class="s3">0x77000000</span><span class="s1">):</span>
+                <span class="s1">PktLen = ((iPktId[</span><span class="s3">0</span><span class="s1">] &amp; </span><span class="s3">0x000000FF</span><span class="s1">) - HdrLen)</span>
+                <span class="s1">time.sleep(</span><span class="s3">0.5</span><span class="s1">)</span>
+                <span class="s1">num_bytes = port.inWaiting()</span>
+                <span class="s0">if </span><span class="s1">(num_bytes &lt; PktLen):</span>
+                    <span class="s1">print(</span><span class="s4">&quot;Expected &quot;</span><span class="s0">, </span><span class="s1">PktLen</span><span class="s0">, </span><span class="s4">&quot;bytes on serial port, only received &quot;</span><span class="s0">, </span><span class="s1">num_bytes)</span>
+                    <span class="s0">break</span>
+                <span class="s0">else</span><span class="s1">:</span>
+                    <span class="s1">rx_data = port.read(PktLen)</span>
+                    <span class="s1">fdata = struct.unpack_from(</span><span class="s4">'f'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">0</span><span class="s1">)</span>
+                    <span class="s1">print(</span><span class="s4">&quot;Manual Temperature = &quot;</span><span class="s0">, </span><span class="s1">round(fdata[</span><span class="s3">0</span><span class="s1">]</span><span class="s0">, </span><span class="s3">2</span><span class="s1">))</span>
+                    <span class="s1">fdata = struct.unpack_from(</span><span class="s4">'f'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">4</span><span class="s1">)</span>
+                    <span class="s1">print(</span><span class="s4">&quot;Manual Humidity = &quot;</span><span class="s0">, </span><span class="s1">round(fdata[</span><span class="s3">0</span><span class="s1">]</span><span class="s0">, </span><span class="s3">2</span><span class="s1">))</span>
+                    <span class="s1">fdata = struct.unpack_from(</span><span class="s4">'f'</span><span class="s0">, </span><span class="s1">rx_data</span><span class="s0">, </span><span class="s1">offset=</span><span class="s3">8</span><span class="s1">)</span>
+                    <span class="s1">print(</span><span class="s4">&quot;Manual Wind Speed = &quot;</span><span class="s0">, </span><span class="s1">round(fdata[</span><span class="s3">0</span><span class="s1">]</span><span class="s0">, </span><span class="s3">2</span><span class="s1">))</span>
+
+        <span class="s1">gpio.setup(RtcAlrmPin</span><span class="s0">, </span><span class="s1">gpio.IN</span><span class="s0">, </span><span class="s1">pull_up_down=gpio.PUD_UP)</span>
+        <span class="s1">gpio.add_event_detect(RtcAlrmPin</span><span class="s0">, </span><span class="s1">gpio.FALLING</span><span class="s0">, </span><span class="s1">callback=rtc_alarm_callback)</span>
+
+        <span class="s2"># Set the time and date on RTC to Monday, May 11, 1964 @ 4:59:00PM</span>
+        <span class="s1">MyTime = [</span><span class="s3">0x0</span><span class="s0">, </span><span class="s3">0x59</span><span class="s0">, </span><span class="s3">0x24</span><span class="s0">, </span><span class="s3">0x11</span><span class="s0">, </span><span class="s3">0x01</span><span class="s0">, </span><span class="s3">0x05</span><span class="s0">, </span><span class="s3">0x64</span><span class="s1">]</span>
+        <span class="s1">bus.write_i2c_block_data(RtcI2cAddr</span><span class="s0">, </span><span class="s3">0x03</span><span class="s0">, </span><span class="s1">MyTime)</span>
+
+        <span class="s1">time.sleep(</span><span class="s3">0.5</span><span class="s1">)</span>
+        <span class="s1">alarm = bus.read_byte_data(RtcI2cAddr</span><span class="s0">, </span><span class="s3">0x01</span><span class="s1">)</span>
+        <span class="s1">alarm2 = gpio.input(RtcAlrmPin)</span>
+        <span class="s0">if </span><span class="s1">alarm2 == gpio.LOW:</span>
+            <span class="s1">bus.write_byte_data(RtcI2cAddr</span><span class="s0">, </span><span class="s3">0x01</span><span class="s0">, </span><span class="s3">0x00</span><span class="s1">)</span>
+        <span class="s1">print(</span><span class="s4">&quot;Alrm Reg: &quot;</span><span class="s0">, </span><span class="s1">alarm</span><span class="s0">, </span><span class="s4">&quot;Pin: &quot;</span><span class="s0">, </span><span class="s1">alarm2)</span>
+        <span class="s1">i = </span><span class="s3">0</span>
+        <span class="s1">runtimes = [] </span><span class="s2">#stores remaining runtime for each individual zone</span>
+        <span class="s1">times = [] </span><span class="s2">#stores total runtime for each remaining zone</span>
+        <span class="s1">final_url = BASE_URL.format(settings[</span><span class="s4">&quot;zip_code&quot;</span><span class="s1">]</span><span class="s0">, </span><span class="s1">settings[</span><span class="s4">&quot;api_key&quot;</span><span class="s1">]</span><span class="s0">, </span><span class="s1">settings[</span><span class="s4">&quot;temp_unit&quot;</span><span class="s1">]) </span><span class="s2">#Gets weather data</span>
+        <span class="s1">weather_data = requests.get(final_url).json()</span>
+        <span class="s0">for </span><span class="s1">x </span><span class="s0">in </span><span class="s1">grasses:</span>
+            <span class="s1">area = </span><span class="s3">50  </span><span class="s2"># based on sprinkler head</span>
+            <span class="s1">soil = soils[i] </span><span class="s2"># entered</span>
+            <span class="s1">zones = </span><span class="s3">5 </span><span class="s2">#entered</span>
+            <span class="s1">flowrate = </span><span class="s3">3 </span><span class="s2">#based on flow rate entered</span>
+            <span class="s1">x = numpy.array([</span><span class="s3">0</span><span class="s0">, </span><span class="s3">5</span><span class="s0">, </span><span class="s3">10</span><span class="s0">, </span><span class="s3">15</span><span class="s0">, </span><span class="s3">20</span><span class="s0">, </span><span class="s3">25</span><span class="s0">, </span><span class="s3">30</span><span class="s1">])</span>
+            <span class="s1">y = numpy.array([</span><span class="s3">0.003767</span><span class="s0">, </span><span class="s3">0.005387</span><span class="s0">, </span><span class="s3">0.007612</span><span class="s0">, </span><span class="s3">0.01062</span><span class="s0">, </span><span class="s3">0.014659</span><span class="s0">, </span><span class="s3">0.019826</span><span class="s0">, </span><span class="s3">0.027125</span><span class="s1">]) </span><span class="s2">#used to estimate maximum humidity ratio based on current temp</span>
+            <span class="s1">pyplot.xlim(</span><span class="s3">35</span><span class="s1">)</span>
+            <span class="s1">line2d = pyplot.plot(x</span><span class="s0">, </span><span class="s1">y)</span>
+            <span class="s1">maxhumidratio = numpy.interp(weather_data[</span><span class="s4">'main'</span><span class="s1">][</span><span class="s4">'temp'</span><span class="s1">]</span><span class="s0">,</span><span class="s1">x</span><span class="s0">,</span><span class="s1">y)</span>
+            <span class="s1">maxtime = </span><span class="s3">0</span>
+            <span class="s1">grasstype = x</span>
+            <span class="s0">if </span><span class="s1">grasstype == </span><span class="s3">1</span><span class="s1">:</span>
+                <span class="s1">runtime2 = ((</span><span class="s3">0.623</span><span class="s1">*area)+(</span><span class="s3">25</span><span class="s1">+</span><span class="s3">19</span><span class="s1">*weather_data[</span><span class="s4">'wind'</span><span class="s1">][</span><span class="s4">'speed'</span><span class="s1">])*area*(maxhumidratio-</span>
+                                <span class="s1">maxhumidratio*</span><span class="s3">.01</span><span class="s1">*weather_data[</span><span class="s4">'main'</span><span class="s1">][</span><span class="s4">'humidity'</span><span class="s1">]))/flowrate </span><span class="s2">#runtime calculations</span>
+            <span class="s0">if </span><span class="s1">grasstype == </span><span class="s3">0</span><span class="s1">:</span>
+                <span class="s1">runtime2 = ((</span><span class="s3">2</span><span class="s1">*</span><span class="s3">0.623 </span><span class="s1">* area) + (</span><span class="s3">25 </span><span class="s1">+ </span><span class="s3">19 </span><span class="s1">* weather_data[</span><span class="s4">'wind'</span><span class="s1">][</span><span class="s4">'speed'</span><span class="s1">]) * area * (maxhumidratio -</span>
+                             <span class="s1">maxhumidratio * </span><span class="s3">.01 </span><span class="s1">* weather_data[</span><span class="s4">'main'</span><span class="s1">][</span><span class="s4">'humidity'</span><span class="s1">])) / flowrate</span>
+
+            <span class="s1">maxtime = (plantavail2[soil]*area*</span><span class="s3">6 </span><span class="s1">+ ((</span><span class="s3">25 </span><span class="s1">+ </span><span class="s3">19 </span><span class="s1">* weather_data[</span><span class="s4">'wind'</span><span class="s1">][</span><span class="s4">'speed'</span><span class="s1">]) * area * (maxhumidratio -</span>
+                            <span class="s1">maxhumidratio * </span><span class="s3">.01 </span><span class="s1">* weather_data[</span><span class="s4">'main'</span><span class="s1">][</span><span class="s4">'humidity'</span><span class="s1">])*infil2[soil]))/flowrate </span><span class="s2">#equation that calculated how much watering time is needed to saturate the soil</span>
+            <span class="s1">runner = runtime2</span>
+            <span class="s0">if </span><span class="s1">runtime2 &gt;= maxtime:</span>
+                <span class="s1">runner = maxtime</span>
+            <span class="s1">runtimes.append(runtime2)</span>
+            <span class="s1">times.append(runner)</span>
+            <span class="s0">if </span><span class="s1">(</span><span class="s0">not </span><span class="s1">isDiqual(final_url)&gt;</span><span class="s3">0</span><span class="s1">) </span><span class="s0">and </span><span class="s1">alarm2 == </span><span class="s3">8</span><span class="s1">:</span>
+                <span class="s1">gpio.output(gpios[i]</span><span class="s0">, </span><span class="s1">gpio.HIGH)</span>
+                <span class="s1">gpio.output(gpios[i - </span><span class="s3">1</span><span class="s1">]</span><span class="s0">, </span><span class="s1">gpio.HIGH) </span><span class="s2">#light up respective LED</span>
+                <span class="s1">time.sleep(runtimes[i])</span>
+                <span class="s1">runtimes[i] = runtimes[i] - times[i]    </span><span class="s2">#if soil is saturated before total runtime elapses, the </span>
+                <span class="s0">if </span><span class="s1">runtimes[i] == </span><span class="s3">0</span><span class="s1">:</span>
+                    <span class="s1">runtimes.pop(i)</span>
+                    <span class="s1">i -= </span><span class="s3">1</span>
+            <span class="s1">i += </span><span class="s3">1</span>
+        <span class="s0">if </span><span class="s1">len(runtimes) == </span><span class="s3">0</span><span class="s1">:</span>
+            <span class="s0">break</span>
+
+
+            
+<span class="s0">if </span><span class="s1">__name__ == </span><span class="s4">'__main__'</span><span class="s1">:</span>
+    <span class="s1">main()</span></pre>
+</body>
+</html>
