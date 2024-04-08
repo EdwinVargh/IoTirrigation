@@ -70,8 +70,9 @@ def rtc_GetTime():
     return RtnTime
 
 
-def rtc_set_alarm_datetime(Wkday, hour, minute, Mthday, years):
-    MyTime = [DectoBCD_byte(Wkday), DectoBCD_byte(hour), DectoBCD_byte(Mthday), DectoBCD_byte(years)]
+def rtc_set_alarm_datetime(Wkday, months, Mthday, years, hours, minutes, seconds):
+    MyTime = [DectoBCD_byte(seconds), DectoBCD_byte(minutes), DectoBCD_byte(hours), DectoBCD_byte(Mthday),
+              DectoBCD_byte(Wkday), DectoBCD_byte(months), DectoBCD_byte(years)]
     bus.write_i2c_block_data(RtcI2cAddr, 0x0A, MyTime)
 
 

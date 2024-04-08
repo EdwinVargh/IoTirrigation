@@ -10,7 +10,6 @@ from smbus2 import SMBus, i2c_msg
 import RPi.GPIO as gpio
 #import RPi.GPIO as GPIO
 #from scipy.interpolate import spline
-import RTC
 import guicode
 import requests
 
@@ -21,14 +20,25 @@ settings = {
     'zip_code':'Dallas',
     'country_code':'us',
     'temp_unit':'metric'} #unit can be metric, imperial, or kelvin
-#GPIO.setmode(GPIO.BCM)
-#GPIO.setwarnings(False)
-#GPIO.setup(18,GPIO.OUT)
-#GPIO.setup(17,GPIO.OUT)
-#GPIO.setup(16,GPIO.OUT)
+gpio.setmode(gpio.BCM)
+gpio.setwarnings(False)
 BASE_URL = "https://api.openweathermap.org/data/2.5/weather?q={0}&appid={1}&units={2}"
 
-RTC.InitRtcWithIrq()
+def InitRtcWithIrq(IrqAlrmPin):
+    # Set to Broadcom Pin Number system
+    gpio.setmode(gpio.BCM)
+
+    # Configure the RTC for 24Hr time
+    bus.write_byte_data(RtcI2cAddr, 0x00, 0x00)
+    # Clear Alarm bit in Control Register 2
+    bus.write_byte_data(RtcI2cAddr, 0x01, 0x00)
+    # Leave Control Register 3 set to defaults
+    bus.write_byte_data(RtcI2cAddr, 0x02, 0x00)
+    # Disable CLKOUT so it doesn't drive /INT1 pin
+    bus.write_byte_data(RtcI2cAddr, 0x0F, 0x38)
+    # Configure gpio pin to interrupt on alarm
+    gpio.setup(IrqAlrmPin, gpio.IN, pull_up_down=gpio.PUD_UP)
+    gpio.add_event_detect(IrqAlrmPin, gpio.FALLING, callback=rtc_alarm_callback)
 
 AdcI2cAddr = 0x48
 
@@ -41,6 +51,35 @@ bus = SMBus(1)
 AdcConfig=[0x42,0x00]
 bus.write_i2c_block_data(AdcI2cAddr,AdcCfgReg,AdcConfig)
 bus.write_byte(AdcI2cAddr,AdcConvReg)
+def rtc_alarm_callback(channel):
+    # Clear Alarm in Control Register 2
+    bus.write_byte_data(RtcI2cAddr, 0x01, 0x00)
+    # Set the Alarm on RTC to Monday at 17:01 24hr time (5:01 PM)
+    print("RTC Alarm Triggered")
+    Mytime = rtc_GetTime()
+def BCDtoDec_byte(Bcdval):
+    #   developed for working with bytes only
+    if (Bcdval == 0):
+        return 0x00
+    hnib = (Bcdval // 16) * 16
+    dec = (Bcdval // 16) * 10
+    dec = dec + (Bcdval - hnib)
+    return dec
+
+def DectoBCD_byte(decval):
+    #   developed for working with bytes only
+    if (decval == 0):
+        return 0x00
+    bcd = 0x00;
+    bcd = decval // 10 * 16
+    bcd = bcd + (decval % 10)
+    return bcd
+
+def rtc_GetTime():
+    MyTime = bus.read_i2c_block_data(RtcI2cAddr, 0x03)
+    RtnTime = [BCDtoDec_byte(MyTime[4]), BCDtoDec_byte(MyTime[5]), BCDtoDec_byte(MyTime[3]), BCDtoDec_byte(MyTime[6]),
+               BCDtoDec_byte(MyTime[2]), BCDtoDec_byte(MyTime[1]), BCDtoDec_byte(MyTime[0])]
+    return RtnTime
 
 Msg = i2c_msg.read(AdcI2cAddr, 2)
 
@@ -59,9 +98,27 @@ bus.write_byte_data(RtcI2cAddr, 0x01, 0x00)
 # Leave Control Register 3 set to defaults
 bus.write_byte_data(RtcI2cAddr, 0x02, 0x00)
 
+def InitMoistureAdc():
+    # RTC is on I2C channel 1
+    bus = SMBus(1)
+    # Configure the ADC for Single Ended, +/-4.096V range, Continuous-conversion, 8SPS, Comp - default
+    AdcConfig = [0x42, 0x00]
+    bus.write_i2c_block_data(AdcI2cAddr, AdcCfgReg, AdcConfig)
+    # Set address pointer to ADC data register
+    bus.write_byte(AdcI2cAddr, AdcConvReg)
+
+def ReadMoistureAdc():
+    bus = SMBus(1)
+    Msg = i2c_msg.read(AdcI2cAddr, 2)
+    bus.i2c_rdwr(Msg)
+    b = list(Msg)
+    val = b[0] * 256 + b[1]
+
+    return (val * 0.000127)
+
 # Configure gpio pin to interrupt on alarm
 gpio.setup(RtcAlrmPin, gpio.IN, pull_up_down=gpio.PUD_UP)
-gpio.add_event_detect(RtcAlrmPin, gpio.FALLING, callback=RTC.rtc_alarm_callback)
+gpio.add_event_detect(RtcAlrmPin, gpio.FALLING, callback=rtc_alarm_callback)
 gpios = [16,19,20,21,26]
 
 date = datetime.now().strftime("%H:%M:%S")
@@ -72,7 +129,7 @@ mins = int(datetime.now().strftime("%M"))
 sec = int(datetime.now().strftime("%S"))
 mon = int(datetime.today().strftime("%B"))
 day = int(datetime.today().strftime("%D"))
-year = int(datetime.today().strftime("%Y"))
+year = int(datetime.today().strftime("%Y"))-2000
 
 def isDiqual(data):
     weather_data = data
@@ -89,30 +146,32 @@ def isDiqual(data):
     rainsnow = weather_data['weather'][0]['description'] == 'rain and snow'
     if lightrain or modrain or heavyrain or rainsnow:
         diqualcount += 1
-    if guicode.ReadMoistureAdc() > 1.5:
+    if ReadMoistureAdc() > 1.5:
         diqualcount += 1
     return diqualcount
 
+def rtc_set_alarm_datetime(Wkday, months, Mthday, years, hours, minutes, seconds):
+    MyTime = [DectoBCD_byte(seconds), DectoBCD_byte(minutes), DectoBCD_byte(hours), DectoBCD_byte(Mthday),
+              DectoBCD_byte(Wkday), DectoBCD_byte(months), DectoBCD_byte(years)]
+    bus.write_i2c_block_data(RtcI2cAddr, 0x0A, MyTime)
+def rtc_set_datetime(Wkday, months, Mthday, years, hours, minutes, seconds):
+    MyTime = [DectoBCD_byte(seconds), DectoBCD_byte(minutes), DectoBCD_byte(hours), DectoBCD_byte(Mthday),
+              DectoBCD_byte(Wkday), DectoBCD_byte(months), DectoBCD_byte(years)]
+    bus.write_i2c_block_data(RtcI2cAddr, 0x03, MyTime)
 
-RTC.rtc_alarm_callback()
-
-RTC.rtc_set_datetime(wkday,mon,day,year,hr,mins,sec)
+rtc_set_datetime(wkday,mon,day,year,hr,mins,sec)
 HdrLen = 4
 port = serial.Serial("/dev/ttyS0", baudrate=9600, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE,
                      stopbits=serial.STOPBITS_ONE, timeout=1.0)
-guicode.InitMoistureAdc()
+InitMoistureAdc()
 def main():
+    global ValEndHr
     while True:
-        MoistureVolts = guicode.ReadMoistureAdc()
+        MoistureVolts = ReadMoistureAdc()
         fdata = struct.pack("f", MoistureVolts)
         port.write(fdata)
         time.sleep(0.2)
 
-        # Set the time and date on RTC to Monday, May 11, 1964 @ 4:59:00PM
-        RTC.rtc_set_datetime(1, 5, 11, 64, 16, 59, 0)
-
-        myTime2 = [0x0, 0x25, 0x80, 0x80]
-        bus.write_i2c_block_data(RtcI2cAddr, 0x0A, myTime2)
         num_bytes = port.inWaiting()
         grasses = 0
         soils = 0
@@ -134,8 +193,6 @@ def main():
                     fdata = struct.unpack_from('f', rx_data, offset=0)
                     FlowRate = fdata[0]
                     ValidDays = ord((struct.unpack_from('c', rx_data, offset=4))[0])
-                    if (ValidDays >> 6) & 0x01:
-                        days.append(6)
                     if (ValidDays >> 5) & 0x01:
                         days.append(0)
                     if (ValidDays >> 4) & 0x01:
@@ -148,6 +205,8 @@ def main():
                         days.append(4)
                     if ValidDays & 0x01:
                         days.append(5)
+                    if (ValidDays >> 6) & 0x01:
+                        days.append(6)
                     ValBegHr = ord((struct.unpack_from('c', rx_data, offset=5))[0])
                     ValBegMin = ord((struct.unpack_from('c', rx_data, offset=6))[0])
                     ValEndHr = ord((struct.unpack_from('c', rx_data, offset=8))[0])
@@ -155,34 +214,37 @@ def main():
                     Zone = ord((struct.unpack_from('c', rx_data, offset=11))[0])
                     grasses = (Zone >> 4) & 0x0F
                     soils = Zone & 0x0F
+            if ((iPktId[0] & 0xFF000000) == 0x77000000):
+                runprof = iPktId[0] & 0x000000FF
 
         gpio.setup(RtcAlrmPin, gpio.IN, pull_up_down=gpio.PUD_UP)
-        gpio.add_event_detect(RtcAlrmPin, gpio.FALLING, callback=RTC.rtc_alarm_callback)
+        gpio.add_event_detect(RtcAlrmPin, gpio.FALLING, callback=rtc_alarm_callback)
 
         # Set the time and date on RTC to Monday, May 11, 1964 @ 4:59:00PM
+        i=0
         dayof = 0
-        RTC.rtc_setalarm_datetime(days[dayof],day,ValBegHr,ValBegMin,year)
-
+        for x in days:
+            if x >= dayof:
+                dayof = i
+            i+=1
+        rtc_set_alarm_datetime(days[dayof], mon, day+(days[dayof]-wkday), year, ValBegHr, ValBegMin, 0)
         time.sleep(0.5)
         alarm = bus.read_byte_data(RtcI2cAddr, 0x01)
         alarm2 = gpio.input(RtcAlrmPin)
         if alarm2 == gpio.LOW:
             bus.write_byte_data(RtcI2cAddr, 0x01, 0x00)
-        print("Alrm Reg: ", alarm, "Pin: ", alarm2)
+        print("Alarm Reg: ", alarm, "Pin: ", alarm2)
         final_url = BASE_URL.format(settings["zip_code"], settings["api_key"], settings["temp_unit"]) #Gets weather data
         weather_data = requests.get(final_url).json()
         area = 50  # based on sprinkler head
         x = numpy.array([0, 5, 10, 15, 20, 25, 30])
         y = numpy.array([0.003767, 0.005387, 0.007612, 0.01062, 0.014659, 0.019826, 0.027125]) #used to estimate maximum humidity ratio based on current temp
         pyplot.xlim(35)
-        line2d = pyplot.plot(x, y)
         maxhumidratio = numpy.interp(weather_data['main']['temp'],x,y)
-        maxtime = 0
-        grasstype = x
-        if grasstype == 1:
+        if grasses == 1:
             runtime2 = ((0.623*area)+(25+19*weather_data['wind']['speed'])*area*(maxhumidratio-
                             maxhumidratio*.01*weather_data['main']['humidity']))/FlowRate #runtime calculations
-        if grasstype == 0:
+        if grasses == 0:
             runtime2 = ((2*0.623 * area) + (25 + 19 * weather_data['wind']['speed']) * area * (maxhumidratio -
                             maxhumidratio * .01 * weather_data['main']['humidity'])) / FlowRate
 
@@ -191,20 +253,36 @@ def main():
         runner = runtime2
         if runtime2 >= maxtime:
             runner = maxtime
-            i = 0
-        if (not isDiqual(final_url)>0) and alarm2 == 8:
+        print(runtime2)
+        iPktId[0] = 0x47000000 + len("ZONE 1 ACTIVE")
+        port.write(struct.pack("i",iPktId))
+        port.write("ZONE 1 ACTIVE")
+        print(maxtime)
+
+        i = 0
+        if (not isDiqual(final_url)>0) and (alarm2 == 8 or runprof == 10):
             for x in gpios:
+                statusstring = "ZONE " + i+1 + " ACTIVE"
                 gpio.output(x, gpio.HIGH)
-                gpio.output(gpios[i - 1], gpio.LOW) #light up respective LED
+                if(i!=0):
+                    statusstring = "ZONE "+i+" DEACTIVATED" + statusstring
+                    gpio.output(gpios[i - 1], gpio.LOW) #light up respective LED
+                iPktId[0] = 0x47000000 + len(statusstring)
+                port.write(struct.pack("i", iPktId))
+                port.write(statusstring)
                 time.sleep(runner)
-                runtime2 = maxtime - runtime2    #if soil is saturated before total runtime elapses, the
+                runtime2 = runtime2 - maxtime
                 i += 1
-        if ValBegHr+1>ValEndHr:
+        if maxtime == 0:
+            break
+        if(ValBegHr+1<ValEndHr):
+            ValBegHr+=1
+        elif dayof<len(days):
             dayof+=1
         else:
-            ValBegHr+=1
+            dayof=0
+        val = 0
         time.sleep(5)
-
 
             
 if __name__ == '__main__':
