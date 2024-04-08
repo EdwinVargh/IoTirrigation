@@ -3,14 +3,14 @@ from pprint import pprint
 from matplotlib import pyplot
 import numpy
 import serial
-import time
+from serial import Serial
+from time import strftime
 import datetime
 import struct
 from smbus2 import SMBus, i2c_msg
 import RPi.GPIO as gpio
 #import RPi.GPIO as GPIO
 #from scipy.interpolate import spline
-import guicode
 import requests
 
 infil2 = [1.5,0.4,0.3,0.05]
@@ -57,6 +57,7 @@ def rtc_alarm_callback(channel):
     # Set the Alarm on RTC to Monday at 17:01 24hr time (5:01 PM)
     print("RTC Alarm Triggered")
     Mytime = rtc_GetTime()
+    
 def BCDtoDec_byte(Bcdval):
     #   developed for working with bytes only
     if (Bcdval == 0):
@@ -76,7 +77,7 @@ def DectoBCD_byte(decval):
     return bcd
 
 def rtc_GetTime():
-    MyTime = bus.read_i2c_block_data(RtcI2cAddr, 0x03)
+    MyTime = bus.read_i2c_block_data(RtcI2cAddr, 0x03, 7)
     RtnTime = [BCDtoDec_byte(MyTime[4]), BCDtoDec_byte(MyTime[5]), BCDtoDec_byte(MyTime[3]), BCDtoDec_byte(MyTime[6]),
                BCDtoDec_byte(MyTime[2]), BCDtoDec_byte(MyTime[1]), BCDtoDec_byte(MyTime[0])]
     return RtnTime
@@ -117,19 +118,14 @@ def ReadMoistureAdc():
     return (val * 0.000127)
 
 # Configure gpio pin to interrupt on alarm
-gpio.setup(RtcAlrmPin, gpio.IN, pull_up_down=gpio.PUD_UP)
-gpio.add_event_detect(RtcAlrmPin, gpio.FALLING, callback=rtc_alarm_callback)
 gpios = [16,19,20,21,26]
 
-date = datetime.now().strftime("%H:%M:%S")
-today = datetime.today().strftime("%B:%D:%Y")
-wkday = int(datetime.today().weekday())
-hr = int(datetime.now().strftime("%H"))
-mins = int(datetime.now().strftime("%M"))
-sec = int(datetime.now().strftime("%S"))
-mon = int(datetime.today().strftime("%B"))
-day = int(datetime.today().strftime("%D"))
-year = int(datetime.today().strftime("%Y"))-2000
+wkday = int(strftime("%w"))
+hr = int(strftime("%I"))
+mins = int(strftime("%M"))
+mon = int(strftime("%m"))
+day = int(strftime("%d"))
+year = int(strftime("%y"))
 
 def isDiqual(data):
     weather_data = data
@@ -150,21 +146,22 @@ def isDiqual(data):
         diqualcount += 1
     return diqualcount
 
-def rtc_set_alarm_datetime(Wkday, months, Mthday, years, hours, minutes, seconds):
-    MyTime = [DectoBCD_byte(seconds), DectoBCD_byte(minutes), DectoBCD_byte(hours), DectoBCD_byte(Mthday),
+def rtc_set_alarm_datetime(Wkday, months, Mthday, years, hours, minutes):
+    MyTime = [0, DectoBCD_byte(minutes), DectoBCD_byte(hours), DectoBCD_byte(Mthday),
               DectoBCD_byte(Wkday), DectoBCD_byte(months), DectoBCD_byte(years)]
     bus.write_i2c_block_data(RtcI2cAddr, 0x0A, MyTime)
-def rtc_set_datetime(Wkday, months, Mthday, years, hours, minutes, seconds):
-    MyTime = [DectoBCD_byte(seconds), DectoBCD_byte(minutes), DectoBCD_byte(hours), DectoBCD_byte(Mthday),
+def rtc_set_datetime(Wkday, months, Mthday, years, hours, minutes):
+    MyTime = [0, DectoBCD_byte(minutes), DectoBCD_byte(hours), DectoBCD_byte(Mthday),
               DectoBCD_byte(Wkday), DectoBCD_byte(months), DectoBCD_byte(years)]
     bus.write_i2c_block_data(RtcI2cAddr, 0x03, MyTime)
 
-rtc_set_datetime(wkday,mon,day,year,hr,mins,sec)
-HdrLen = 4
-port = serial.Serial("/dev/ttyS0", baudrate=9600, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE,
-                     stopbits=serial.STOPBITS_ONE, timeout=1.0)
-InitMoistureAdc()
 def main():
+    rtc_set_datetime(wkday,mon,day,year,hr,mins)
+    HdrLen = 4
+    port = serial.Serial("/dev/ttyS0", baudrate=9600, bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE,
+    					 stopbits=serial.STOPBITS_ONE, timeout=1.0)
+    InitMoistureAdc()
+    InitRtcWithIrq(RtcAlrmPin)
     global ValEndHr
     while True:
         MoistureVolts = ReadMoistureAdc()
@@ -217,8 +214,7 @@ def main():
             if ((iPktId[0] & 0xFF000000) == 0x77000000):
                 runprof = iPktId[0] & 0x000000FF
 
-        gpio.setup(RtcAlrmPin, gpio.IN, pull_up_down=gpio.PUD_UP)
-        gpio.add_event_detect(RtcAlrmPin, gpio.FALLING, callback=rtc_alarm_callback)
+
 
         # Set the time and date on RTC to Monday, May 11, 1964 @ 4:59:00PM
         i=0
@@ -283,7 +279,6 @@ def main():
             dayof=0
         val = 0
         time.sleep(5)
-
             
 if __name__ == '__main__':
     main()
