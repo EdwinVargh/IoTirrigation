@@ -207,11 +207,12 @@ def main():
     runtime2 = 0
     days = []  # stores what days are available
     maxtime = 0
+    dayof = 0
     while True:
         num_bytes = port.inWaiting()
         print("Waiting...")
         newinfo = False
-        if num_bytes >= HdrLen:  # unpacks received GUI information
+        if num_bytes >= HdrLen and (iPktId[0] & 0xFF000000) == 0x57000000:  # unpacks received GUI information
             print("Received!")
             SendZoneStatus("Serial Input Buffer has been reset")
             SendAlgorithmStatus("Serial output buffer has been reset")
@@ -220,91 +221,91 @@ def main():
             # cPktId = port.read(HdrLen)
             iPktId = struct.unpack('i', port.read(HdrLen))
             # check if packet is a configuration change command
-            if ((iPktId[0] & 0xFF000000) == 0x57000000):
-                PktLen = ((iPktId[0] & 0x000000FF) - HdrLen)
-                time.sleep(0.5)
-                num_bytes = port.inWaiting()
-                if (num_bytes < PktLen):
-                    print("Expected ", PktLen, "bytes on serial port, only received ", num_bytes)
-                else:
-                    rx_data = port.read(PktLen)
-                    fdata = struct.unpack_from('f', rx_data, offset=0)
-                    FlowRate = fdata[0]
-                    ValidDays = ord((struct.unpack_from('c', rx_data, offset=4))[0])
-                    if (ValidDays >> 5) & 0x01:
-                        days.append(0)
-                    if (ValidDays >> 4) & 0x01:
-                        days.append(1)
-                    if (ValidDays >> 3) & 0x01:
-                        days.append(2)
-                    if (ValidDays >> 2) & 0x01:
-                        days.append(3)
-                    if (ValidDays >> 1) & 0x01:
-                        days.append(4)
-                    if ValidDays & 0x01:
-                        days.append(5)
-                    if (ValidDays >> 6) & 0x01:
-                        days.append(6)
-                    ValBegHr = ord((struct.unpack_from('c', rx_data, offset=5))[0])
-                    ValBegMin = ord((struct.unpack_from('c', rx_data, offset=6))[0])
-                    ValEndHr = ord((struct.unpack_from('c', rx_data, offset=8))[0])
-                    ValEndMin = ord((struct.unpack_from('c', rx_data, offset=9))[0])
-                    Zone = ord((struct.unpack_from('c', rx_data, offset=11))[0])
-                    grasses = (Zone >> 4) & 0x0F
-                    soils = Zone & 0x0F
-            if ((iPktId[0] & 0xFF000000) == 0x77000000):
-                runprof = iPktId[0] & 0x000000FF
-            # Set the time and date on RTC to Monday, May 11, 1964 @ 4:59:00PM
-            i = 0
-            dayof = 0
-            print("Running now?",runprof)
-            if len(days) == 0:
-                days.append(0)
-            final_url = BASE_URL.format(settings["zip_code"], settings["api_key"], settings["temp_unit"])  # Gets weather data
-            weather_data = requests.get(final_url).json()
-            print(weather_data)
-            SendWeatherData(weather_data['main']['temp'],weather_data['main']['humidity'],weather_data['wind']['speed'],MoistureVolts)
-            if newinfo == True:
-                area = 50  # based on sprinkler head
-                x = numpy.array([0, 5, 10, 15, 20, 25, 30])
-                y = numpy.array([0.003767, 0.005387, 0.007612, 0.01062, 0.014659, 0.019826, 0.027125])  # used to estimate maximum humidity ratio based on current temp
-                pyplot.xlim(35)
-                maxhumidratio = numpy.interp(weather_data['main']['temp'], x, y)
-                if grasses == 1:
-                    runtime2 = ((0.623 * area) + (25 + 19 * weather_data['wind']['speed']) * area * (maxhumidratio - maxhumidratio * .01 * weather_data['main']['humidity'])) / FlowRate  # runtime calculations
-                if grasses == 0:
-                    runtime2 = ((2 * 0.623 * area) + (25 + 19 * weather_data['wind']['speed']) * area * (maxhumidratio - maxhumidratio * .01 * weather_data['main']['humidity'])) / FlowRate
-                maxtime = (plantavail2[soils] * area * 6 + ((25 + 19 * weather_data['wind']['speed']) * area * (maxhumidratio - maxhumidratio * .01 * weather_data['main']['humidity']) * infil2[soils])) / FlowRate
-                runner = runtime2         
-                if runtime2 >= maxtime:
-                    runner = maxtime
-                else:
-                    maxtime=runtime2
-                print(runtime2)
-                print(maxtime)
-                alg = "Run time:"+str(runner)
-                SendAlgorithmStatus(alg)
-            i = 0
-            rtc_set_alarm_datetime(days[dayof], mon, day + (days[dayof] - wkday), year, ValBegHr, ValBegMin, 0)
+            PktLen = ((iPktId[0] & 0x000000FF) - HdrLen)
             time.sleep(0.5)
-            alarm = bus.read_byte_data(RtcI2cAddr, 0x01)
-            alarm2 = gpio.input(RtcAlrmPin)
-            if alarm2 == gpio.LOW:
-                bus.write_byte_data(RtcI2cAddr, 0x01, 0x00)
-            print("Alarm Reg: ", alarm, "Pin: ", alarm2)
-            while(alarm2 != 8 and runprof == 0):
-                print("waiting")
-            if (not isDiqual(final_url)>0):
-               for x in gpios:
-                    statusstring = "ZONE " + i+1 + " ACTIVE"
-                    gpio.output(x, gpio.HIGH)
-                    if(i!=0):
-                        statusstring = "ZONE "+i+" DEACTIVATED" + statusstring
-                        gpio.output(gpios[i - 1], gpio.LOW) #light up respective LED
-                    SendZoneStatus(statusstring)
-                    print(statusstring)
-                    i += 1
-            runtime2 = runtime2 - maxtime
+            num_bytes = port.inWaiting()
+            if (num_bytes < PktLen):
+                print("Expected ", PktLen, "bytes on serial port, only received ", num_bytes)
+            else:
+                rx_data = port.read(PktLen)
+                fdata = struct.unpack_from('f', rx_data, offset=0)
+                FlowRate = fdata[0]
+                ValidDays = ord((struct.unpack_from('c', rx_data, offset=4))[0])
+                if (ValidDays >> 5) & 0x01:
+                    days.append(0)
+                if (ValidDays >> 4) & 0x01:
+                    days.append(1)
+                if (ValidDays >> 3) & 0x01:
+                    days.append(2)
+                if (ValidDays >> 2) & 0x01:
+                    days.append(3)
+                if (ValidDays >> 1) & 0x01:
+                    days.append(4)
+                if ValidDays & 0x01:
+                    days.append(5)
+                if (ValidDays >> 6) & 0x01:
+                    days.append(6)
+                ValBegHr = ord((struct.unpack_from('c', rx_data, offset=5))[0])
+                ValBegMin = ord((struct.unpack_from('c', rx_data, offset=6))[0])
+                ValEndHr = ord((struct.unpack_from('c', rx_data, offset=8))[0])
+                ValEndMin = ord((struct.unpack_from('c', rx_data, offset=9))[0])
+                Zone = ord((struct.unpack_from('c', rx_data, offset=11))[0])
+                grasses = (Zone >> 4) & 0x0F
+                soils = Zone & 0x0F
+        if num_bytes >= HdrLen and (iPktId[0] & 0xFF000000) == 0x77000000:
+            if (num_bytes < PktLen):
+                print("Expected ", PktLen, "bytes on serial port, only received ", num_bytes)
+            else:
+                runprof = iPktId[0] & 0x000000FF
+        print("Running now?",runprof)
+        if len(days) == 0:
+            days.append(0)
+        final_url = BASE_URL.format(settings["zip_code"], settings["api_key"], settings["temp_unit"])  # Gets weather data
+        weather_data = requests.get(final_url).json()
+        print(weather_data)
+        SendWeatherData(weather_data['main']['temp'],weather_data['main']['humidity'],weather_data['wind']['speed'],MoistureVolts)
+        if newinfo == True:
+            area = 50  # based on sprinkler head
+            x = numpy.array([0, 5, 10, 15, 20, 25, 30])
+            y = numpy.array([0.003767, 0.005387, 0.007612, 0.01062, 0.014659, 0.019826, 0.027125])  # used to estimate maximum humidity ratio based on current temp
+            pyplot.xlim(35)
+            maxhumidratio = numpy.interp(weather_data['main']['temp'], x, y)
+            if grasses == 1:
+                runtime2 = ((0.623 * area) + (25 + 19 * weather_data['wind']['speed']) * area * (maxhumidratio - maxhumidratio * .01 * weather_data['main']['humidity'])) / FlowRate  # runtime calculations
+            if grasses == 0:
+                runtime2 = ((2 * 0.623 * area) + (25 + 19 * weather_data['wind']['speed']) * area * (maxhumidratio - maxhumidratio * .01 * weather_data['main']['humidity'])) / FlowRate
+            maxtime = (plantavail2[soils] * area * 6 + ((25 + 19 * weather_data['wind']['speed']) * area * (maxhumidratio - maxhumidratio * .01 * weather_data['main']['humidity']) * infil2[soils])) / FlowRate
+            runner = runtime2         
+            if runtime2 >= maxtime:
+                runner = maxtime
+            else:
+                maxtime=runtime2
+            print(runtime2)
+            print(maxtime)
+            alg = "Run time:"+str(runner)
+            SendAlgorithmStatus(alg)
+        i = 0
+        rtc_set_alarm_datetime(days[dayof], mon, day + (days[dayof] - wkday), year, ValBegHr, ValBegMin, 0)
+        time.sleep(0.5)
+        alarm = bus.read_byte_data(RtcI2cAddr, 0x01)
+        alarm2 = gpio.input(RtcAlrmPin)
+        if alarm2 == gpio.LOW:
+            bus.write_byte_data(RtcI2cAddr, 0x01, 0x00)
+        print("Alarm Reg: ", alarm, "Pin: ", alarm2)
+        #datestring = "Running on " + str(rtc_GetTime()[4])
+        if runprof == 1 or ((not isDiqual(final_url)>0) and alarm2 == 8):
+            for x in gpios:
+                statusstring = "ZONE " + i+1 + " ACTIVATED"
+                gpio.output(x, gpio.HIGH)
+                if(i!=0):
+                    statusstring = "ZONE "+i+" DEACTIVATED, " + statusstring
+                    gpio.output(gpios[i - 1], gpio.LOW) #light up respective LED
+                SendZoneStatus(statusstring)
+                print(statusstring)
+                i += 1
+            runtime2 -= maxtime
+            if runtime2 <= 0:
+                break
             if runtime2 <= maxtime:
                 maxtime = runtime2
             if(rtc_GetTime()[4]<ValEndHr):
@@ -313,9 +314,9 @@ def main():
                 dayof+=1
             else:
                 dayof=0
-        time.sleep(5)
-    gpio.remove_event_detect(RtcAlrmPin)
-    gpio.cleanup()
+    time.sleep(5)
+gpio.remove_event_detect(RtcAlrmPin)
+gpio.cleanup()
 
             
 if __name__ == '__main__':
