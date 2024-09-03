@@ -7,7 +7,7 @@ import time
 
 itstime = datetime.now()
 settings = {
-    'api_key':'957ea5e3412c8e4daa0d8f0547b7c716',
+    #Revoked API Key
     'zip_code':'Dallas',
     'country_code':'us',
     'temp_unit':'metric'}
