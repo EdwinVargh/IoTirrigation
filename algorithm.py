@@ -17,7 +17,7 @@ import requests
 infil2 = [1.5,0.4,0.3,0.05]
 plantavail2 = [0.05,0.16,0.2,0.15]
 settings = {
-    'api_key':'957ea5e3412c8e4daa0d8f0547b7c716',
+    #Revoked weather API key
     'zip_code':'Dallas',
     'country_code':'us',
     'temp_unit':'metric'} #unit can be metric, imperial, or kelvin
