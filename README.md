@@ -16,6 +16,12 @@ The while loop reads data from the bus and triggers the interrupt callback funct
 
 algorithm.py --
 
+Almost all of the logic is handled within the main function, except for some hardware helper functions, and the isDiqual function that detects whether the weather (fetched by an API call) is raining or the ground moisture levels are already too high to justify irrigation.
+Based on the user selections in the GUI, the system receives a packet of all the relevant information, including days of operation, lawn grass type, and runtime hours.
+The system then collects weather data from the internet and writes it to the Raspberry Pi over the serial port.
+Using all of the information from the GUI and hardware readings, the system calculates the overall runtime, up to maxtime.
+Finally, in the system's while loop, the system sets the timer and waits. Whenever the alarm is triggered (or the system is set to immediately run), the system activates each zone for the allotted runtime.
+
 closest station.py -- 
 
 fetchweather.py -- 
