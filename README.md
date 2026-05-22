@@ -38,9 +38,11 @@ Most of this code is also used in the main algorithm, though not called from thi
 
 haversine.py -- 
 
+This code calculates the haversine distance between two points on Earth, accounting for Earth's curvature. This program is used to find the closes weather station to the user's latitude and longitude.
+
 interrupt.py -- 
 
-main.py -- 
+This program was written to test interrupts with the Real Time Clock, using a lot of the same features outlined in RTC.py.
 
 moist.py -- 
 
