@@ -34,11 +34,11 @@ This program tests the API call that gets all the weather data from the internet
 guicode.py -- 
 
 Based on the user's selections in the GUI, the system receives a packet containing all relevant information, including days of operation, lawn grass type, and runtime hours. 
-Most of this code is also used in the main algorithm, though not called from this python file for reasons I don't remember.
+Most of this code is also used in the main algorithm, though not called from this Python file for reasons I don't remember.
 
 haversine.py -- 
 
-This code calculates the haversine distance between two points on Earth, accounting for Earth's curvature. This program is used to find the closes weather station to the user's latitude and longitude.
+This code calculates the haversine distance between two points on Earth, accounting for Earth's curvature. This program is used to find the closest weather station to the user's latitude and longitude.
 
 interrupt.py -- 
 
@@ -46,4 +46,10 @@ This program was written to test interrupts with the Real Time Clock, using a lo
 
 moist.py -- 
 
+This program tested the soil moisture sensor, which was a crucial part of the runtime calculation algorithm.
+The sensor outputs lower voltages when the soil is wet, and higher voltages when the soil is dry. The sensor is calibrated based on the values passed through PlantNumber.
+If the sensor reading exceeds the calibration wetness or dryness values, then the output is cut off at 0 or 1, respectively. Otherwise, the output is calculated using linear interpolation.
+
 systemtest1.py -- 
+
+This program was among the first written, made to test the LEDs, weather API, and Real Time Clock. If the temperature is greater than or equal to 0 degrees, then the first LED flashes every other second, the second LED flashes every three seconds, and the third LED flashes every five seconds. 
