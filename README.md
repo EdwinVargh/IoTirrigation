@@ -1,6 +1,6 @@
 # **IOT Irrigation System**
 
-I made this project in the 11th grade for an interdisciplinary study class. 
+I made this project during the spring of 2024.
 
 Under the mentorship of an employee from Corning Optical Communications, I designed a system that calculated the runtime of sprinklers on a household lawn, using data referenced from the internet and a network of physical sensors. 
 
